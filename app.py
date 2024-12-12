@@ -1,30 +1,26 @@
 import asyncio
 import os
 from aiogram import Bot, Dispatcher, types
-from aiogram.filters import CommandStart
-from aiogram.filters import Command
-
 from dotenv import load_dotenv, find_dotenv
+from handlers.user_private import user_private_router
+from common.bot_command_list import private
+from aiogram.enums import ParseMode
 
 load_dotenv(find_dotenv())
 
+ALLOWED_UPDATES = ['message, edited_message']
+
 bot = Bot(token=os.getenv('TOKEN'))
+bot.my_admins_list = []
+
 dp = Dispatcher()
 
-@dp.message(CommandStart())
-async def start_command(message: types.Message):
-    await message.answer("Привет! Я бот для помощи с домашними заданиями.\n"
-                        "Введите /help, чтобы узнать, как я могу вам помочь.")
-
-@dp.message(Command(commands=['help']))
-async def help_command(message: types.Message):
-    await message.answer("Я могу:\n"
-                        " - Добавлять задачи в расписание: /add_task <день недели> <задачи>\n"
-                        " - Удалять задачи из расписания: /remove_task <день недели> <задачи>\n"
-                        " - Редактировать задачи в расписании: /edit_task <день недели> <задачи> <новая задачи>\n"
-                        " - Добавить расписание: /add_schedule")
+dp.include_router(user_private_router)
 
 async def main():
-    await dp.start_polling(bot)
+    await bot.delete_webhook(drop_pending_updates=True)
+    await bot.set_my_commands(commands=private, scope=types.BotCommandScopeAllPrivateChats())
+    await dp.start_polling(bot, allowed_updates=ALLOWED_UPDATES)
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
