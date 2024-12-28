@@ -15,7 +15,6 @@ async def start_command(message: types.Message):
     await message.answer(
         "Привет, я бот который помогает записывать д/з",
                          reply_markup=get_keyboard(
-                             "Меню",
                              "О боте",
                              "Добавить расписание",
                              "Изменить расписание",
