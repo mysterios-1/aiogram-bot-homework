@@ -10,7 +10,13 @@ load_dotenv(find_dotenv())
 
 ALLOWED_UPDATES = ['message, edited_message']
 
-bot = Bot(token=os.getenv('TOKEN'))
+token = os.getenv("TOKEN")
+
+if token is None:
+    print("Ошибка: Не найден токен бота в переменной окружения TOKEN!")
+    exit()
+
+bot = Bot(token=token)
 bot.my_admins_list = []
 
 dp = Dispatcher()
