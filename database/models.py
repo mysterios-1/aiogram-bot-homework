@@ -16,11 +16,11 @@ class Homework(Base):
 
 class Schedule(Base):
     __tablename__ = 'schedules'
-    
+
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    schedule_id: Mapped[int] = mapped_column(primary_key=True, nullable=False)
-    day_of_week: Mapped[str] = mapped_column( )
-    subject: Mapped[str] = mapped_column(nullable=False)
+    user_id: Mapped[int] = mapped_column(nullable=False, index=True)
+    lessons: Mapped["Lesson"] = relationship(back_populates="schedule", cascade="all, delete-orphan")
+
 
 class Lesson(Base):
     __tablename__ = 'lessons'
