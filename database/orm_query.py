@@ -3,7 +3,7 @@ from sqlalchemy import select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from database.models import User, Schedule
+from database.models import Lesson, User, Schedule
 
 async def orm_add_user(
     session: AsyncSession,
@@ -17,6 +17,18 @@ async def orm_add_user(
             User(user_id=user_id)
         )
         await session.commit()
+        
+async def orm_check_user(session: AsyncSession, user_id: int) -> bool:
+    try:
+        result = await session.execute(
+            select(User).where(User.user_id == user_id)
+        )
+        user = result.scalars().first()
+        return user is not None
+    except Exception as e:
+        # Можно логировать исключение
+        print(f"Ошибка при проверке пользователя: {e}")
+        return False
 
 async def orm_add_schedule(session:AsyncSession, data:dict):
     obj = Schedule(
@@ -25,10 +37,26 @@ async def orm_add_schedule(session:AsyncSession, data:dict):
         wednesday = data['wednesday'],
         thursday = data['thursday'],
         friday = data['friday'],
-        saturday = data['saturday']
+        saturday = data['saturday'],
+        user_id = data['user_id']
     )
     session.add(obj)
     await session.commit()
+
+async def get_lessons(session: AsyncSession, schedule_id: int):
+    """Получает уроки для определенного расписания."""
+    stmt = select(Lesson).where(Lesson.schedule_id == schedule_id).order_by(Lesson.lesson_number)
+    result = await session.execute(stmt)
+    lessons = result.scalars().all()
+    return lessons
+
+async def get_schedule_data(session: AsyncSession, schedule_id: int):
+    """Получает данные расписания по ID."""
+    stmt = select(Schedule).where(Schedule.id == schedule_id)
+    result = await session.execute(stmt)
+    schedule = result.scalar_one_or_none()
+    return schedule
+
 
 async def orm_update_schedule(session: AsyncSession, schedule_id: int, data):
     query = (
@@ -51,6 +79,8 @@ async def orm_get_schedule(session: AsyncSession, schedule_id: int):
     query = select(Schedule).where(Schedule.id == schedule_id)
     result = await session.execute(query)
     return result.scalar()
+
+
 
 
 

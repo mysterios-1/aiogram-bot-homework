@@ -19,6 +19,14 @@ class Schedule(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(nullable=False, index=True)
+    monday: Mapped[str] = mapped_column(nullable=True)
+    tuesday: Mapped[str] = mapped_column(nullable=True)
+    wednesday: Mapped[str] = mapped_column( nullable=True)
+    thursday: Mapped[str] = mapped_column(nullable=True) 
+    friday: Mapped[str] = mapped_column(nullable=True)
+    saturday: Mapped[str] = mapped_column(nullable=True)
+    sunday: Mapped[str] = mapped_column(nullable=True)
+
     lessons: Mapped["Lesson"] = relationship(back_populates="schedule", cascade="all, delete-orphan")
 
 
@@ -27,7 +35,6 @@ class Lesson(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     schedule_id: Mapped[int] = mapped_column(ForeignKey('schedules.id'), nullable=False)
-    lesson_number: Mapped[int] = mapped_column(nullable=False)
     subject: Mapped[str] = mapped_column(nullable=False)
     homework: Mapped[str] = mapped_column(default="Нету дз")
 
