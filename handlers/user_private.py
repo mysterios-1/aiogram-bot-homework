@@ -267,10 +267,9 @@ async def add_sunday(message: types.Message, state: FSMContext, session: AsyncSe
     else:
         await state.update_data(sunday=message.text)
 
-    data = await state.get_data()  # Получаем все введённые данные
+    data = await state.get_data()
 
     try:
-        # Проверка и добавление пользователя, если его ещё нет
         user = message.from_user
         user_exists = await orm_check_user(session, user.id)
         if not user_exists:
@@ -279,13 +278,84 @@ async def add_sunday(message: types.Message, state: FSMContext, session: AsyncSe
                 user_id=user.id,
             )
 
-        # Обновляем или добавляем расписание
         if AddSchedule.schedule_for_change:
             await orm_update_schedule(session, AddSchedule.schedule_for_change.id, data)
         else:
-            # Добавляем user_id в данные, чтобы его можно было сохранить в БД
             data['user_id'] = message.from_user.id
             await orm_add_schedule(session, data)
+        
+        user_id = message.from_user.id 
+
+        all_lessons = []
+        days_of_week = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+
+        for day in days_of_week:
+            if day in data and data[day]:
+                lessons = [l.strip() for l in data[day].split(',')]
+                all_lessons.extend(lessons)
+
+        unique_lessons = set(all_lessons)
+        await message.answer(str(unique_lessons))
+
+        # result = await session.execute(select(Schedule))
+        # schedules = result.scalars().all()
+
+        # #Получаем все возможные уроки из расписания
+        # all_lessons = []
+        # for sched in schedules:
+        #     for day in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']:
+        #         cell = getattr(sched, day, None)
+        #         if cell:
+        #             lessons = [l.strip() for l in cell.split(',')]
+        #             all_lessons.extend(lessons)
+
+        # #Убираем повторения
+         # unique_lessons = set(all_lessons)
+
+        # #Добавляем все уроки
+        # for lesson_name in unique_lessons:
+        #     lesson_exists = await session.execute(select(Lesson).filter_by(subject=lesson_name))
+        #     existing_lesson = lesson_exists.scalars().first()
+
+        #     if not existing_lesson:
+        #         # Если урока нет, создаем его и добавляем в список lessons расписания
+        #         lesson = Lesson(subject=lesson_name)
+        #         schedule.lessons.append(lesson)  # Используем relationship
+        #         session.add(lesson) # Явное добавление урока в сессию
+        #     else:
+        #         #Если урок существует и не связан с расписанием, привязываем его
+        #         if existing_lesson.schedule_id is None:
+        #             schedule.lessons.append(existing_lesson)
+        #             existing_lesson.schedule_id = schedule.id # Явно указываем schedule_id, так как при relationship может не сразу обновиться в бд
+
+
+        # @user_private_router.message(days_of_week.Monday, F.text)
+        # async def add_schedule(message: types.Message, state: FSMContext, session):
+        #     schedule_string = message.text
+        #     lessons = [s.strip() for s in schedule_string.split(',')]
+
+        #     schedule_for_change = None
+        #     new_schedule = Schedule(user_id=message.from_user.id)
+        #     session.add(new_schedule)
+        #     await session.flush() 
+
+        #     for i, subject in enumerate(lessons):
+        #         lesson_number = i + 1 
+        #         new_lesson = Lesson(schedule_id=new_schedule.id, lesson_number=lesson_number, subject=subject)
+        #         session.add(new_lesson)
+
+        # schedule_query = select(Schedule).where(Schedule.id == schedule_id)
+        # result = await session.execute(schedule_query)
+        # schedule = result.scalars().first()
+
+        # if schedule is None:
+        #     raise ValueError(f"Не удалось получить расписание с ID: {schedule_id} после создания.")
+
+        # # Добавляем простой урок (для теста)
+        # lesson = Lesson(subject="Тестовый урок") # Создаем урок
+        # schedule.lessons.append(lesson) #Привязываем к расписанию
+        # session.add(lesson)  # Добавляем в сессию
+        # await session.commit() # Сохраняем изменения
 
         await message.answer("Расписание добавлено/изменено", reply_markup=types.ReplyKeyboardRemove())
         await state.clear()
