@@ -14,6 +14,7 @@ from sqlalchemy import exc
 from database.orm_query import (
     get_lessons,
     get_schedule_data,
+    orm_add_lessons_unique_by_schedule,
     orm_add_schedule,
     orm_add_user,
     orm_check_user,
@@ -282,10 +283,9 @@ async def add_sunday(message: types.Message, state: FSMContext, session: AsyncSe
             await orm_update_schedule(session, AddSchedule.schedule_for_change.id, data)
         else:
             data['user_id'] = message.from_user.id
-            await orm_add_schedule(session, data)
+            new_schedule = await orm_add_schedule(session, data)
+            schedule_id = new_schedule.id
         
-        user_id = message.from_user.id 
-
         all_lessons = []
         days_of_week = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 
@@ -295,67 +295,8 @@ async def add_sunday(message: types.Message, state: FSMContext, session: AsyncSe
                 all_lessons.extend(lessons)
 
         unique_lessons = set(all_lessons)
-        await message.answer(str(unique_lessons))
 
-        # result = await session.execute(select(Schedule))
-        # schedules = result.scalars().all()
-
-        # #Получаем все возможные уроки из расписания
-        # all_lessons = []
-        # for sched in schedules:
-        #     for day in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']:
-        #         cell = getattr(sched, day, None)
-        #         if cell:
-        #             lessons = [l.strip() for l in cell.split(',')]
-        #             all_lessons.extend(lessons)
-
-        # #Убираем повторения
-         # unique_lessons = set(all_lessons)
-
-        # #Добавляем все уроки
-        # for lesson_name in unique_lessons:
-        #     lesson_exists = await session.execute(select(Lesson).filter_by(subject=lesson_name))
-        #     existing_lesson = lesson_exists.scalars().first()
-
-        #     if not existing_lesson:
-        #         # Если урока нет, создаем его и добавляем в список lessons расписания
-        #         lesson = Lesson(subject=lesson_name)
-        #         schedule.lessons.append(lesson)  # Используем relationship
-        #         session.add(lesson) # Явное добавление урока в сессию
-        #     else:
-        #         #Если урок существует и не связан с расписанием, привязываем его
-        #         if existing_lesson.schedule_id is None:
-        #             schedule.lessons.append(existing_lesson)
-        #             existing_lesson.schedule_id = schedule.id # Явно указываем schedule_id, так как при relationship может не сразу обновиться в бд
-
-
-        # @user_private_router.message(days_of_week.Monday, F.text)
-        # async def add_schedule(message: types.Message, state: FSMContext, session):
-        #     schedule_string = message.text
-        #     lessons = [s.strip() for s in schedule_string.split(',')]
-
-        #     schedule_for_change = None
-        #     new_schedule = Schedule(user_id=message.from_user.id)
-        #     session.add(new_schedule)
-        #     await session.flush() 
-
-        #     for i, subject in enumerate(lessons):
-        #         lesson_number = i + 1 
-        #         new_lesson = Lesson(schedule_id=new_schedule.id, lesson_number=lesson_number, subject=subject)
-        #         session.add(new_lesson)
-
-        # schedule_query = select(Schedule).where(Schedule.id == schedule_id)
-        # result = await session.execute(schedule_query)
-        # schedule = result.scalars().first()
-
-        # if schedule is None:
-        #     raise ValueError(f"Не удалось получить расписание с ID: {schedule_id} после создания.")
-
-        # # Добавляем простой урок (для теста)
-        # lesson = Lesson(subject="Тестовый урок") # Создаем урок
-        # schedule.lessons.append(lesson) #Привязываем к расписанию
-        # session.add(lesson)  # Добавляем в сессию
-        # await session.commit() # Сохраняем изменения
+        await orm_add_lessons_unique_by_schedule(session, unique_lessons, schedule_id) #Тут должен быть schedule_id который есть
 
         await message.answer("Расписание добавлено/изменено", reply_markup=types.ReplyKeyboardRemove())
         await state.clear()
@@ -402,64 +343,4 @@ async def show_schedule(message: types.Message, session: AsyncSession):
     await message.answer(schedule_text)
 
 
-
-# @user_private_router.message(or_f(Command("add_schedule"), (F.text.lower() == "добавить расписание")))
-# async def start_add_schedule(message: types.Message, state: FSMContext):
-#     await message.answer("Введите расписание уроков через запятую (например: Алгебра, Геометрия, Русский язык):")
-#     await state.set_state(days_of_week.Monday)
-
-# @user_private_router.message(days_of_week.Monday, F.text)
-# async def add_schedule_monday(message: types.Message, state: FSMContext, session):
-#     schedule_string = message.text
-#     lessons = [s.strip() for s in schedule_string.split(',')]
-
-#     new_schedule = Schedule(user_id=message.from_user.id)
-#     session.add(new_schedule)
-#     await session.flush() 
-
-#     for i, subject in enumerate(lessons):
-#         lesson_number = i + 1 
-#         new_lesson = Lesson(schedule_id=new_schedule.id, lesson_number=lesson_number, subject=subject)
-#         session.add(new_lesson)
-
-#     await session.commit()
-#     await state.clear()
-
-#     await message.answer("Расписание успешно сохранено!")
-
-
-
-
-# @user_private_router.message(or_f(Command("show_schedule"), (F.text.lower() == "посмотреть расписание")))
-# async def show_schedule(message: types.Message, session: AsyncSession):
-
-#     user_id = message.from_user.id # здесь lesson.schedule_id равен 8, т.к айди пользователся отличается от айди расписание, а schedule_id равен айди пользователю
-    
-#     # async def get_lessons(session: AsyncSession, schedule_id: int):
-#     #     stmt = select(Lesson).where(Lesson.schedule_id == schedule_id).order_by(Lesson.lesson_number)
-#     #     result = await session.execute(stmt)
-#     #     lessons = result.scalars().all()
-#     #     return lessons
-#     # как сделать так чтобы schedule_id в табл Lesson равнялось id в таблице Schedule, учитывая как основу
-#     # a1 = await get_lessons(session, schedule_id)
-
-#     # 1. Получаем schedule_id для user_id (предполагая, что у вас есть session)
-#     schedule_query = select(Schedule.id).where(Schedule.user_id == user_id)
-#     result = await session.execute(schedule_query)
-#     schedule_id = result.scalar_one()
-
-#     # 2. Используем schedule_id в запросе к Lesson
-#     lesson_query = select(Lesson).where(Lesson.schedule_id == schedule_id).order_by(Lesson.lesson_number)
-#     result = await session.execute(lesson_query)
-#     lessons = result.scalars().all()
-
-#     if not lessons:
-#         await message.answer("Расписание не найдено. Сначала добавьте расписание.")
-#         return
-
-#     schedule_text = "Ваше расписание:\n"
-#     for lesson in lessons:
-#         schedule_text += f"Урок {lesson.lesson_number}: {lesson.subject} {lesson.homework}\n" 
-
-#     await message.answer(schedule_text)
 

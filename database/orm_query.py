@@ -42,6 +42,23 @@ async def orm_add_schedule(session:AsyncSession, data:dict):
     )
     session.add(obj)
     await session.commit()
+    await session.refresh(obj) 
+    return obj
+
+async def orm_add_lessons_unique_by_schedule(session: AsyncSession, lessons: set, schedule_id: int):
+
+    result = await session.execute(
+        select(Lesson.subject).where(Lesson.schedule_id == schedule_id, Lesson.subject.in_(lessons))
+    )
+    existing_lessons = set(row[0] for row in result.all())
+
+    new_lessons = lessons - existing_lessons
+
+    for lesson_name in new_lessons:
+        lesson_obj = Lesson(subject=lesson_name, schedule_id=schedule_id)
+        session.add(lesson_obj)
+
+    await session.commit()
 
 async def get_lessons(session: AsyncSession, schedule_id: int):
     """Получает уроки для определенного расписания."""
