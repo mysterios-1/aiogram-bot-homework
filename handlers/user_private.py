@@ -137,9 +137,6 @@ async def add_monday(message: types.Message, state: FSMContext):
     if message.text == "." and AddSchedule.schedule_for_change:
         await state.update_data(monday=AddSchedule.schedule_for_change.monday)
     else:
-        # Здесь можно сделать какую либо дополнительную проверку
-        # и выйти из хендлера не меняя состояние с отправкой соответствующего сообщения
-        # например:
         if 4 >= len(message.text) >= 150:
             await message.answer(
                 "Длина расписания не должна превышать 150 символов\nили быть менее 5ти символов. \n Введите заново"
@@ -251,7 +248,7 @@ async def add_saturday(message: types.Message, state: FSMContext):
         await state.update_data(saturday=AddSchedule.schedule_for_change.saturday)
     else:
         await state.update_data(saturday=message.text)
-    await message.answer("Введите расписание на воскресенье:")  # Добавляем вопрос про воскресенье
+    await message.answer("Введите расписание на воскресенье:") 
     await state.set_state(AddSchedule.sunday)
 
 
@@ -310,7 +307,7 @@ async def add_sunday(message: types.Message, state: FSMContext, session: AsyncSe
         AddSchedule.schedule_for_change = None
 
 
-@user_private_router.message(AddSchedule.sunday)  # Обработчик некорректного ввода для воскресенья
+@user_private_router.message(AddSchedule.sunday)
 async def add_sunday2(message: types.Message, state: FSMContext):
     await message.answer("Вы ввели не допустимые данные, воскресенье")
 
@@ -318,10 +315,9 @@ async def add_sunday2(message: types.Message, state: FSMContext):
 async def show_schedule(message: types.Message, session: AsyncSession):
     user_id = message.from_user.id
 
-    # Получаем schedule_id для user_id
-    schedule_query = select(Schedule.id).where(Schedule.user_id == user_id)
+    schedule_query = select(Schedule.id).where(Schedule.user_id == user_id).limit(1)
     result = await session.execute(schedule_query)
-    schedule_id = result.scalar_one_or_none()  # Используем scalar_one_or_none для обработки случаев, когда расписание не найдено
+    schedule_id = result.scalar_one_or_none()
 
     if schedule_id is None:
         await message.answer("Расписание не найдено schedule id. Сначала добавьте расписание.")
@@ -329,17 +325,31 @@ async def show_schedule(message: types.Message, session: AsyncSession):
 
     schedule_text = "Ваше расписание:\n"
 
-    # Разделяем уроки по дням недели
     days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
     schedule_data = await get_schedule_data(session, schedule_id)
 
+    schedule_text = ""
+
+    day_names = {
+        "monday": "Понедельник",
+        "tuesday": "Вторник",
+        "wednesday": "Среда",
+        "thursday": "Четверг",
+        "friday": "Пятница",
+        "saturday": "Суббота",
+        "sunday": "Воскресенье"
+    }
+
     for day in days:
         lessons_for_day = getattr(schedule_data, day.lower())
-        schedule_text += f"\n{day}:\n"
+        schedule_text += f"\n{day_names.get(day, day.capitalize())}:\n"
         if lessons_for_day:
-            schedule_text += f"{lessons_for_day}\n"
+            lessons_list = [lesson.strip() for lesson in lessons_for_day.split(",")]
+            for i, lesson in enumerate(lessons_list, start=1):
+                schedule_text += f"{i}. {lesson}\n"
         else:
             schedule_text += "  Нет уроков\n"
+
     await message.answer(schedule_text)
 
 

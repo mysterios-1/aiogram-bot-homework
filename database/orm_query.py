@@ -26,7 +26,6 @@ async def orm_check_user(session: AsyncSession, user_id: int) -> bool:
         user = result.scalars().first()
         return user is not None
     except Exception as e:
-        # Можно логировать исключение
         print(f"Ошибка при проверке пользователя: {e}")
         return False
 

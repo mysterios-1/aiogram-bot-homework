@@ -18,7 +18,7 @@ class Schedule(Base):
     __tablename__ = 'schedules'
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
     monday: Mapped[str] = mapped_column(nullable=True)
     tuesday: Mapped[str] = mapped_column(nullable=True)
     wednesday: Mapped[str] = mapped_column( nullable=True)
