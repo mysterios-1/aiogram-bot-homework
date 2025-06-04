@@ -1,18 +1,15 @@
-from asyncio.log import logger
 from aiogram import F, types, Router
-from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command, or_f, StateFilter
-from aiogram.utils.formatting import (
-    as_list,
-    as_marked_section,
-    Bold,
-)
-from database.models import Lesson, Schedule
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.context import FSMContext
+
 from kbds.reply import get_keyboard
-from sqlalchemy.orm import Session
-from sqlalchemy import exc
+
+from database.models import Schedule
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+
 from database.orm_query import (
-    get_lessons,
     get_schedule_data,
     orm_add_lessons_unique_by_schedule,
     orm_add_schedule,
@@ -21,11 +18,6 @@ from database.orm_query import (
     orm_get_schedule,
     orm_update_schedule
 )
-from sqlalchemy.ext.asyncio import AsyncSession
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.fsm.context import FSMContext
-from sqlalchemy import select
-
 
 user_private_router = Router()
 
@@ -34,23 +26,21 @@ async def start_command(message: types.Message):
     await message.answer(
         "Привет, я бот который помогает записывать д/з",
                          reply_markup=get_keyboard(
-                             "О боте",
                              "Добавить расписание",
                              "Изменить расписание",
+                             "Показать расписание",
                              "Добавить д/з",
                              "Изменить д/з",
+                             "Показать д/з",
+                             "О боте",
                              placeholder="Что интересует?",
-                             sizes=(2,2,2)
+                             sizes=(3,3,1)
                          ),
                         )
-    
-@user_private_router.message(or_f(Command("menu"), (F.text.lower() == "меню")))
-async def menu_cmd(message: types.Message):
-    await message.answer("Вот меню:")
 
 @user_private_router.message(or_f(Command("about"), (F.text.lower() == "о боте")))
 async def about_cmd(message: types.Message):
-    await message.answer("О нас:")
+    await message.answer("Этот бот предназначен для удобного ведения домашнего задания и расписания уроков. С его помощью пользователи могут создавать, просматривать и изменять своё расписание, а также записывать задания на каждый день. Бот реализован на языке Python с использованием библиотеки SQLAlchemy для работы с базой данных PostgreSQL, что обеспечивает надёжное и эффективное хранение информации. Благодаря современным технологиям бот позволяет легко управлять учебным процессом и не забывать важные дела.")
 
 class AddSchedule(StatesGroup):
     monday = State()
@@ -91,12 +81,36 @@ async def change_schedule_callback(
     await state.set_state(AddSchedule.monday)
 
 
-@user_private_router.message(or_f(Command("add_schedule"), (F.text.lower() == "добавить  расписание")))
-async def add_schedule(message: types.Message, state: FSMContext):
-    await message.answer(
-        "Введите расписание на понедельник:", reply_markup=types.ReplyKeyboardRemove()
-    )
+@user_private_router.message(or_f(Command("add_schedule"), (F.text.lower() == "добавить расписание")))
+async def add_schedule(message: types.Message, state: FSMContext, session: AsyncSession):
+    user_id = message.from_user.id
+
+    # Поиск существующего расписания пользователя
+    query = select(Schedule).where(Schedule.user_id == user_id).limit(1)
+    result = await session.execute(query)
+    existing_schedule = result.scalar_one_or_none()
+
+    if existing_schedule:
+        AddSchedule.schedule_for_change = existing_schedule
+        await message.answer(
+            "У вас уже есть расписание. Оно будет заменено новым.\nВведите расписание на понедельник:",
+            reply_markup=types.ReplyKeyboardRemove()
+        )
+    else:
+        AddSchedule.schedule_for_change = None
+        await message.answer(
+            "Введите расписание на понедельник:",
+            reply_markup=types.ReplyKeyboardRemove()
+        )
+
     await state.set_state(AddSchedule.monday)
+
+# @user_private_router.message(or_f(Command("add_schedule"), (F.text.lower() == "добавить расписание")))
+# async def add_schedule(message: types.Message, state: FSMContext):
+#     await message.answer(
+#         "Введите расписание на понедельник:", reply_markup=types.ReplyKeyboardRemove()
+#     )
+#     await state.set_state(AddSchedule.monday)
 
 
 @user_private_router.message(StateFilter("*"), Command("отмена"))
@@ -149,7 +163,7 @@ async def add_monday(message: types.Message, state: FSMContext):
     await state.set_state(AddSchedule.tuesday)
 
 
-@user_private_router.message(AddSchedule.monday)
+@user_private_router.message(AddSchedule.monday, ~F.text)
 async def add_monday2(message: types.Message, state: FSMContext):
     await message.answer("Вы ввели не допустимые данные, понедельник")
 
@@ -171,7 +185,7 @@ async def add_tuesday(message: types.Message, state: FSMContext):
     await state.set_state(AddSchedule.wednesday)
 
 
-@user_private_router.message(AddSchedule.tuesday)
+@user_private_router.message(AddSchedule.tuesday, ~F.text)
 async def add_tuesday2(message: types.Message, state: FSMContext):
     await message.answer("Вы ввели не допустимые данные, вторник")
 
@@ -193,7 +207,7 @@ async def add_wednesday(message: types.Message, state: FSMContext):
     await state.set_state(AddSchedule.thursday)
 
 
-@user_private_router.message(AddSchedule.wednesday)
+@user_private_router.message(AddSchedule.wednesday, ~F.text)
 async def add_wednesday2(message: types.Message, state: FSMContext):
     await message.answer("Вы ввели не допустимые данные, среда")
 
@@ -215,7 +229,7 @@ async def add_thursday(message: types.Message, state: FSMContext):
     await state.set_state(AddSchedule.friday)
 
 
-@user_private_router.message(AddSchedule.thursday)
+@user_private_router.message(AddSchedule.thursday, ~F.text)
 async def add_thursday2(message: types.Message, state: FSMContext):
     await message.answer("Вы ввели не допустимые данные, четверг")
 
@@ -237,7 +251,7 @@ async def add_friday(message: types.Message, state: FSMContext):
     await state.set_state(AddSchedule.saturday)
 
 
-@user_private_router.message(AddSchedule.friday)
+@user_private_router.message(AddSchedule.friday, ~F.text)
 async def add_friday2(message: types.Message, state: FSMContext):
     await message.answer("Вы ввели не допустимые данные, пятница")
 
@@ -252,14 +266,13 @@ async def add_saturday(message: types.Message, state: FSMContext):
     await state.set_state(AddSchedule.sunday)
 
 
-@user_private_router.message(AddSchedule.saturday)
+@user_private_router.message(AddSchedule.saturday, ~F.text)
 async def add_saturday2(message: types.Message, state: FSMContext):
     await message.answer("Вы ввели не допустимые данные, суббота")
 
 
 @user_private_router.message(AddSchedule.sunday, F.text)
 async def add_sunday(message: types.Message, state: FSMContext, session: AsyncSession):
-    logger.debug("add_sunday хэндлер вызван")
     if message.text == "." and AddSchedule.schedule_for_change:
         await state.update_data(sunday=AddSchedule.schedule_for_change.sunday)
     else:
@@ -278,6 +291,7 @@ async def add_sunday(message: types.Message, state: FSMContext, session: AsyncSe
 
         if AddSchedule.schedule_for_change:
             await orm_update_schedule(session, AddSchedule.schedule_for_change.id, data)
+            schedule_id = AddSchedule.schedule_for_change.id
         else:
             data['user_id'] = message.from_user.id
             new_schedule = await orm_add_schedule(session, data)
@@ -307,11 +321,11 @@ async def add_sunday(message: types.Message, state: FSMContext, session: AsyncSe
         AddSchedule.schedule_for_change = None
 
 
-@user_private_router.message(AddSchedule.sunday)
+@user_private_router.message(AddSchedule.sunday, ~F.text)
 async def add_sunday2(message: types.Message, state: FSMContext):
     await message.answer("Вы ввели не допустимые данные, воскресенье")
 
-@user_private_router.message(or_f(Command("show_schedule"), (F.text.lower() == "посмотреть расписание")))
+@user_private_router.message(or_f(Command("show_schedule"), (F.text.lower() == "показать расписание")))
 async def show_schedule(message: types.Message, session: AsyncSession):
     user_id = message.from_user.id
 
@@ -320,7 +334,7 @@ async def show_schedule(message: types.Message, session: AsyncSession):
     schedule_id = result.scalar_one_or_none()
 
     if schedule_id is None:
-        await message.answer("Расписание не найдено schedule id. Сначала добавьте расписание.")
+        await message.answer("Расписание не найдено. Сначала добавьте расписание.")
         return
 
     schedule_text = "Ваше расписание:\n"

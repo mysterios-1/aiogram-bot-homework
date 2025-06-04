@@ -74,20 +74,21 @@ async def get_schedule_data(session: AsyncSession, schedule_id: int):
     return schedule
 
 
-async def orm_update_schedule(session: AsyncSession, schedule_id: int, data):
+async def orm_update_schedule(session: AsyncSession, schedule_id: int, data: dict):
     query = (
         update(Schedule)
         .where(Schedule.id == schedule_id)
         .values(
-            monday = data['monday'],
-            tuesday = data['tuesday'],
-            wednesday = data['wednesday'],
-            thursday = data['thursday'],
-            friday = data['friday'],
-            saturday = data['saturday']
+            monday=data.get('monday', ''),
+            tuesday=data.get('tuesday', ''),
+            wednesday=data.get('wednesday', ''),
+            thursday=data.get('thursday', ''),
+            friday=data.get('friday', ''),
+            saturday=data.get('saturday', ''),
+            sunday=data.get('sunday', '') 
         )
     )
-    await session.execute(query)
+    await session.execute(query, execution_options={"synchronize_session": "fetch"})
     await session.commit()
 
 
